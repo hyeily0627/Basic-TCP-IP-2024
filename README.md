@@ -211,5 +211,100 @@
     - 따라서 안전성보다 성능이 중요시 될 때에는 UDP를 사용한다.
 
 # 3일차 (2024-06-13)
+- 일방적인 연결 종료의 문제점   
+    - close 및 closesocket 함수의 기능
+        - 소켓의 완전 소멸을 의미한다.
+        - 소켓이 소멸되므로 더 이상의 입출력은 불가능하다.
+        - 상대방의 상태에 상관 없이 일방적인 종료의 형태를 띤다.
+        - 때문에 상대 호스트의 데이터 송수신이 아직 완료되지 않은 상황이라면, 문제가 발생할 수 있다.
+        - 이러한 문제의 대안으로 Half-close 기법이 존재한다.
+- Half-close
+    - 종료를 원한다는 것은, 더 이상 전송할 데이터가 존재하지 않는 상황이다.
+    - 따라서 출력 스트림은 종료를 시켜도 된다.
+    - 다만 상대방도 종료를 원하는지 확인되지 않은 상황이므로, 출력 스트림은 종료시
+    키지 않을 필요가 있다.
+    - 때문에 일반적으로 Half-close라 하면, 입력 스트림만 종료하는 것을 의미한다.
+    - Half-close를 가리켜 ‘우아한 종료’라고도 한다.
+
+- 도메인 이름 
+    - IP를 대신하는 서버의 주소 (ex) www.naver.com
+    - 실제 접속에 사용되는 주소는 아니다. 이 정보는 IP로 변환이 되어야 접속이 가능하다.
+- DNS 서버
+    - 도메인 이름을 IP로 변환해주는 서버
+    - DNS는 일종의 분산 데이터베이스 시스템이다.
+
+![도메인](https://raw.githubusercontent.com/hyeily0627/Basic-TCP-IP-2024/main/images/006.png)
+
+- 소켓의 다양한 옵션 
+
+- Time-Wait의 이해 
+    - 서버, 클라이언트에 상관없이 TCP 소켓에서 연결의 종료를 목적으로 Four-way handshaking의 첫 번째 메시지를 젂달하는 호스트의 소켓은 Time-wait 상태를 거친다. 
+    - Time-wait 상태 동안에는 해당 소켓이 소멸되지않아서 할당 받은 Port를 다른 소켓이 할당할 수 없다.
+- Time-wait의 존재이유
+    - 아래 그림에서 호스트 A의 마지막 ACK가 소멸되는 상황을 대비해서 Time-wait 상태가 필요하다. 호스트 A의 마지막 ACK가 소멸되면, 호스트 B는 계속해서 FIN 메시지를 호스트 A에 전달하게 된다.
+    ![Time-wait](https://raw.githubusercontent.com/hyeily0627/Basic-TCP-IP-2024/main/images/007.png)
+
+- Nagle 알고리즘(212p)
+    - 인터넷의 과도한 트래픽과 그로 인한 젂송속도의 저하를 막기 위해서 디자인 된 알고리즘이 Nagle 알고리즘이다.
+    - 이러한 Nagle 알고리즘은 그 목적이 명확한 경우가 아니면 중단하지 말아야 하며, 소켓은 기본적으로 Nagle 알고리즘을 적용해서 데이터를 송수신한다.
+
+- 프로세스
+    - 간단하게는 **실행 중인 프로그램**을 뜻한다.
+    - 실행중인 프로그램에 관련된 메모리, 리소스 등을 총칭하는 의미이다.
+    - 멀티프로세스 운영체제는 둘 이상의 프로세스를 동시에 생성 가능하다.
+- 프로세스 ID
+    - 운영제제는 생성되는 모든 프로세스에 ID를 할당한다.
+- 리눅스에서 프로세스 확인해보기 
+
+![리눅스프로세스](https://raw.githubusercontent.com/hyeily0627/Basic-TCP-IP-2024/main/images/008.png)
+
+
+- fork 함수의 호출을 통한 프로세스의 생성 
+    - fork 함수가 호출되면, 호출한 프로세스가 복사되어 fork 함수 호출 이후를 각각의 프로세스가 독립적으로 실행하게 된다.
+```c
+#include <unistd.h>
+
+pid_t fork(void); 
+// 성공시 프로세스 ID, 실패시 -1 반환 
+```
+![fork함수](https://raw.githubusercontent.com/hyeily0627/Basic-TCP-IP-2024/main/images/009.png)
+
+- 좀비 프로세스 
+    - 실행이 완료되었음에도 불구하고, 소멸되지 않은 프로세스
+    - 프로세스도 main 함수가 반환되면 소멸되어야 한다.
+    - 소멸되지 않았다는 것은 프로세스가 사용한 리소스가 메모리 공간에 여전히 존재한다는 의미이다.
+- 좀비 프로세스의 생성 원인
+    - 자식 프로세스가 종료되면서 반환하는 상태 값이 부모 프로세스에게 전달되지 않으면 해당 프로세스는 소멸되지 않고 좀비가 된다.
+        - 인자를 전달하면서 exit를 호출하는 경우
+        - main 함수에서 return 문을 실행하면서 값을 반환하는 경우 
+        => 해당 자식 프로세스를 생성한 부모 프로세스에게 exit의 함수 인자 값이나 return문의 반환값이 전달 되어야한다!! 
+    ```c
+    #include <stdio.h>
+    #include <unistd.h>
+
+    int main(int argc, char *argv[])
+    {
+        pid_t pid=fork();
+        
+        if(pid==0)     // if Child Process
+        {
+            puts("Hi I'am a child process");
+        }
+        else
+        {
+            printf("Child Process ID: %d \n", pid);
+            sleep(30);     // Sleep 30 sec.
+        }
+
+        if(pid==0)
+            puts("End child process");
+        else
+            puts("End parent process");
+        return 0;
+    }
+    ```
+
+    ![좀비](https://raw.githubusercontent.com/hyeily0627/Basic-TCP-IP-2024/main/images/010.png)
+
 
 # 4일차 (2024-06-14)
